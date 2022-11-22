@@ -11,28 +11,15 @@ import asyncio
 import re
 import time
 from datetime import datetime
+from typing import List
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from playwright.async_api import async_playwright, Page
-from chinese_calendar import is_workday
 
-from tools import local_day
-from setting import INTERVAL_TASK
+from models import Stock
+from setting import scheduler
+from tools import local_day_str, get_stock_info, is_trading_day
 
-def is_trading_day(day=None):
-    """
-    判断day是否是股票交易日
-    """
-    if day is None:
-        day = local_day()
-    # print(day)
-    if is_workday(day):
-        if day.weekday() == 5 or day.weekday() == 6:
-            return False
-        else:
-            return True
-    else:
-        return False
 
 async def search_stock(page:Page, search_str):
     url = "http://www.iwencai.com/unifiedwap/home/index"
@@ -51,6 +38,32 @@ async def search_stock(page:Page, search_str):
         gp_list = []
     return gp_list
 
+async def stock_save_db(stock_list: List):
+    """
+    股票数据存入数据库
+    如果已存在并且已推送，则忽略
+    如果已存在，未推送，更新价格和量比
+    如果未存在，直接添加
+    """
+    day = local_day_str()
+    for stock in stock_list:
+        stock_code = stock[0:6]
+        stock_name = stock[6:]
+        stock_object = await Stock.filter(code=stock_code, day=day).first()
+        if stock_object:
+            stock_info = get_stock_info(stock_code)
+            await Stock.get(code=stock_code, day=day).update(last_price=stock_info['price'],
+                                                             TTM=stock_info['TTM'],
+                                                             volume_ratio=stock_info['volume_ratio'],
+                                                             add_num=F('add_num') + 1)
+        else:
+            stock_info = get_stock_info(stock_code)
+            # print(stock_info)
+            await Stock.create(code=stock_code, name=stock_name, day=day,
+                               first_price=stock_info['price'],
+                               last_price=stock_info['price'],
+                               TTM=stock_info['TTM'],
+                               volume_ratio=stock_info['volume_ratio'] )
 
 async def search_gp(search_str: str):
     """
@@ -72,6 +85,7 @@ async def search_gp(search_str: str):
         a_gp_list = await search_stock(page, search_str)
         if a_gp_list:
             print(a_gp_list)
+            await stock_save_db(a_gp_list)
             # send_wechat(push_content)
         else:
             print("未匹配到相应数据！！！")
@@ -87,6 +101,7 @@ async def gp_start():
         dt_11_30 = datetime.strptime(today + ' 11:30', "%Y%m%d %H:%M")
         dt_13_00 = datetime.strptime(today + ' 13:00', "%Y%m%d %H:%M")
         dt_14_48 = datetime.strptime(today + ' 14:48', "%Y%m%d %H:%M")
+        search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
         scheduler.add_job(search_gp, 'interval', seconds=150, id='sw', args=[search_str],
                           start_date=dt_9_40, end_date=dt_11_30, replace_existing=True, timezone='Asia/Shanghai')
         scheduler.add_job(search_gp, 'interval', seconds=150, id='xw', args=[search_str],
@@ -98,9 +113,8 @@ async def keep_db_conn():
     print(f"当前时间：{datetime.now().strftime( '%Y-%m-%d %H:%M:%S')}")
 
 async def add_task():
-    scheduler = AsyncIOScheduler(**INTERVAL_TASK)
-    scheduler.start()
-    scheduler.add_job(keep_db_conn, 'interval', id='keep_db', seconds=6, timezone='Asia/Shanghai',
+
+    scheduler.add_job(keep_db_conn, 'interval', id='keep_db', seconds=60*60*4, timezone='Asia/Shanghai',
                       replace_existing=True)
     scheduler.add_job(gp_start, 'cron', id='push_start', hour='9', minute='00', timezone='Asia/Shanghai',
                       replace_existing=True)

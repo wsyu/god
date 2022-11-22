@@ -42,4 +42,4 @@ INTERVAL_TASK = {
     "timezone": "Asia/Shanghai"  # 解决linux系统环境timezone不对称报错
 }
 
-# scheduler = AsyncIOScheduler(**INTERVAL_TASK)
+scheduler = AsyncIOScheduler(**INTERVAL_TASK)

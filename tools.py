@@ -9,6 +9,7 @@ desc ：
 """
 import datetime
 import time
+import requests
 
 from chinese_calendar import is_workday
 
@@ -35,3 +36,30 @@ def is_trading_day(day=None):
             return True
     else:
         return False
+
+def get_stock_info(code: str):
+    """
+    采用腾讯股票接口获取股票信息
+    """
+    sina_url = "http://qt.gtimg.cn/q="
+    if code.startswith('6'):
+        url = sina_url + "sh" + code
+    if code.startswith('0'):
+        url = sina_url + "sz" + code
+    if code.startswith('3'):
+        url = sina_url + "sz" + code
+    retry_count = 1
+    stock_info = {}
+    while retry_count < 4:
+        try:
+            resp = requests.get(url=url)
+            data = resp.text
+            stock_info_list = data.split('~')
+            stock_info['price'] = stock_info_list[3]
+            stock_info['TTM'] = stock_info_list[39]
+            stock_info['volume_ratio'] = stock_info_list[49]
+            break
+        except:
+            time.sleep(2)
+            retry_count += 1
+    return stock_info
