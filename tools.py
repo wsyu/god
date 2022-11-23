@@ -7,13 +7,14 @@ time ： 20:03
 Author ： wsy
 desc ：
 """
-import datetime
+from datetime import datetime
 import time
 import requests
 
 from chinese_calendar import is_workday
 
 def local_day():
+
     now = datetime.now().strftime("%Y-%m-%d")
     day = datetime.strptime(now, "%Y-%m-%d")
     return day

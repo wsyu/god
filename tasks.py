@@ -13,8 +13,9 @@ import time
 from datetime import datetime
 from typing import List
 
-
+import requests
 from playwright.async_api import async_playwright, Page
+from tortoise.expressions import F
 
 from models import Stock
 from setting import scheduler
@@ -52,7 +53,7 @@ async def stock_save_db(stock_list: List):
         stock_object = await Stock.filter(code=stock_code, day=day).first()
         if stock_object:
             stock_info = get_stock_info(stock_code)
-            await Stock.get(code=stock_code, day=day).update(last_price=stock_info['price'],
+            await Stock.filter(code=stock_code, day=day).update(last_price=stock_info['price'],
                                                              TTM=stock_info['TTM'],
                                                              volume_ratio=stock_info['volume_ratio'],
                                                              add_num=F('add_num') + 1)
@@ -94,30 +95,82 @@ async def search_gp(search_str: str):
         await context.close()
         await browser.close()
 
+
+def send_wechat(push_content):
+    if push_content:
+        url = "http://www.pushplus.plus/send"
+        token = "fd9f40c87ee04647bd6eee375781b8e2"
+        send_data = {
+            "token": token,
+            "title": "财富密码",
+            "content": push_content,
+            "topic": "wealth",
+            "template": 'html'
+            }
+        retry_count = 1
+        while retry_count < 4:
+            try:
+                resp = requests.post(url=url, json=send_data)
+                if resp.status_code != 200:
+                    print("微信消息发送失败")
+                    print(resp.text)
+                    retry_count += 1
+                else:
+                    print("已推送到微信...")
+                    break
+            except:
+                print("微信推送错误...")
+                retry_count += 1
+    else:
+        print("内容为空,未推送...")
+
+async def push_wechat():
+    """
+    将股票数据推送到微信
+    排除已推送的
+    推荐量比大于7的,次数大于2的
+    """
+    day = local_day_str()
+    stock_list = await Stock.filter(day=day).filter(volume_ratio__gte=7, TTM__gte=0, add_num__gt=2).exclude(is_push=1)
+    if stock_list:
+        push_content = ""
+        for stock in stock_list:
+            push_content += f"<p>{stock.code} {stock.name} {stock.last_price}</p>"
+        send_wechat(push_content)
+        await Stock.filter(day=day).filter(volume_ratio__gte=7, TTM__gte=0, add_num__gt=2).update(is_push=1)
+
+
 async def gp_start():
+    print("股票任务开始...")
+    search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
+    # scheduler.add_job(search_gp, 'interval', seconds=20, id='test', args=[search_str],
+    #                   replace_existing=True, timezone='Asia/Shanghai')
     if is_trading_day():
         today = datetime.now().strftime("%Y%m%d")
         dt_9_40 = datetime.strptime(today + ' 09:40', "%Y%m%d %H:%M")
         dt_11_30 = datetime.strptime(today + ' 11:30', "%Y%m%d %H:%M")
         dt_13_00 = datetime.strptime(today + ' 13:00', "%Y%m%d %H:%M")
         dt_14_48 = datetime.strptime(today + ' 14:48', "%Y%m%d %H:%M")
-        search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
         scheduler.add_job(search_gp, 'interval', seconds=150, id='sw', args=[search_str],
                           start_date=dt_9_40, end_date=dt_11_30, replace_existing=True, timezone='Asia/Shanghai')
         scheduler.add_job(search_gp, 'interval', seconds=150, id='xw', args=[search_str],
                           start_date=dt_13_00, end_date=dt_14_48, replace_existing=True, timezone='Asia/Shanghai')
+        scheduler.add_job(push_wechat, 'interval', seconds=120, id='auto_push_wechat', start_date=dt_9_40,
+                          end_date=dt_14_48, replace_existing=True, timezone='Asia/Shanghai')
     else:
         print("今天不是交易日~~~")
 
 async def keep_db_conn():
-    print(f"当前时间：{datetime.now().strftime( '%Y-%m-%d %H:%M:%S')}")
+    print(f"当前时间：{datetime.now().strftime( '%Y-%m-%d %H:%M:%S')}, 服务正常...")
 
 async def add_task():
-
-    scheduler.add_job(keep_db_conn, 'interval', id='keep_db', seconds=60*60*4, timezone='Asia/Shanghai',
+    print("正在启动定时任务...")
+    scheduler.add_job(keep_db_conn, 'interval', id='keep_db', seconds=60*60, timezone='Asia/Shanghai',
                       replace_existing=True)
     scheduler.add_job(gp_start, 'cron', id='push_start', hour='9', minute='00', timezone='Asia/Shanghai',
                       replace_existing=True)
+    # scheduler.add_job(gp_start, 'interval', id='push_start', seconds=30, timezone='Asia/Shanghai',
+    #                   replace_existing=True)
 
 
     # await keep_db_conn()
