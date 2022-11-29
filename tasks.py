@@ -51,20 +51,23 @@ async def stock_save_db(stock_list: List):
         stock_code = stock[0:6]
         stock_name = stock[6:]
         stock_object = await Stock.filter(code=stock_code, day=day).first()
-        if stock_object:
-            stock_info = get_stock_info(stock_code)
-            await Stock.filter(code=stock_code, day=day).update(last_price=stock_info['price'],
+        try:
+            if stock_object:
+                stock_info = get_stock_info(stock_code)
+                await Stock.filter(code=stock_code, day=day).update(last_price=stock_info['price'],
                                                              TTM=stock_info['TTM'],
                                                              volume_ratio=stock_info['volume_ratio'],
                                                              add_num=F('add_num') + 1)
-        else:
-            stock_info = get_stock_info(stock_code)
-            # print(stock_info)
-            await Stock.create(code=stock_code, name=stock_name, day=day,
+            else:
+                stock_info = get_stock_info(stock_code)
+
+                await Stock.create(code=stock_code, name=stock_name, day=day,
                                first_price=stock_info['price'],
                                last_price=stock_info['price'],
                                TTM=stock_info['TTM'],
                                volume_ratio=stock_info['volume_ratio'] )
+        except:
+            break
 
 async def search_gp(search_str: str):
     """
@@ -131,18 +134,19 @@ async def push_wechat():
     推荐量比大于7的,次数大于2的
     """
     day = local_day_str()
-    stock_list = await Stock.filter(day=day).filter(volume_ratio__gte=7, TTM__gte=0, add_num__gt=2).exclude(is_push=1)
+    stock_list = await Stock.filter(day=day).filter(volume_ratio__gte=7, add_num__gt=2).exclude(is_push=1)
     if stock_list:
         push_content = ""
         for stock in stock_list:
             push_content += f"<p>{stock.code} {stock.name} {stock.last_price}</p>"
         send_wechat(push_content)
-        await Stock.filter(day=day).filter(volume_ratio__gte=7, TTM__gte=0, add_num__gt=2).update(is_push=1)
+        await Stock.filter(day=day).filter(volume_ratio__gte=7, add_num__gt=2).update(is_push=1)
 
 
 async def gp_start():
     print("股票任务开始...")
-    search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
+    # search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2.7；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
+    search_str = '上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；市盈ttm大于0；量比大于3；日RSI金叉；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；'
     # scheduler.add_job(search_gp, 'interval', seconds=20, id='test', args=[search_str],
     #                   replace_existing=True, timezone='Asia/Shanghai')
     if is_trading_day():
