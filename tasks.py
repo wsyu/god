@@ -55,19 +55,33 @@ async def stock_save_db(stock_list: List):
             if stock_object:
                 stock_info = get_stock_info(stock_code)
                 await Stock.filter(code=stock_code, day=day).update(last_price=stock_info['price'],
-                                                             TTM=stock_info['TTM'],
-                                                             volume_ratio=stock_info['volume_ratio'],
-                                                             add_num=F('add_num') + 1)
+                                                                    TTM=stock_info['TTM'],
+                                                                    volume_ratio=stock_info['volume_ratio'],
+                                                                    add_num=F('add_num') + 1,
+                                                                    outer_disc=stock_info['outer_disc'],
+                                                                    inter_disc=stock_info['inter_disc'],
+                                                                    turnover_rate=stock_info['turnover_rate'],
+                                                                    circulation_market_value=stock_info[
+                                                                        'circulation_market_value'],
+                                                                    )
             else:
+
                 stock_info = get_stock_info(stock_code)
 
-                await Stock.create(code=stock_code, name=stock_name, day=day,
-                               first_price=stock_info['price'],
-                               last_price=stock_info['price'],
-                               TTM=stock_info['TTM'],
-                               volume_ratio=stock_info['volume_ratio'] )
+                await Stock.create(code=stock_code,
+                                   name=stock_name,
+                                   day=day,
+                                   first_price=stock_info['price'],
+                                   last_price=stock_info['price'],
+                                   TTM=stock_info['TTM'],
+                                   volume_ratio=stock_info['volume_ratio'],
+                                   outer_disc=stock_info['outer_disc'],
+                                   inter_disc=stock_info['inter_disc'],
+                                   turnover_rate=stock_info['turnover_rate'],
+                                   circulation_market_value=stock_info['circulation_market_value'],
+                                   )
         except:
-            break
+            continue
 
 async def search_gp(search_str: str):
     """
@@ -107,7 +121,7 @@ def send_wechat(push_content):
             "token": token,
             "title": "财富密码",
             "content": push_content,
-            "topic": "wealth",
+            # "topic": "wealth",
             "template": 'html'
             }
         retry_count = 1
@@ -146,20 +160,22 @@ async def push_wechat():
 async def gp_start():
     print("股票任务开始...")
     # search_str = "上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；日rsi金叉；市盈ttm大于0；量比大于2.7；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；"
-    search_str = '上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；市盈ttm大于0；量比大于3；日RSI金叉；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；'
+    # search_str = '上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；市盈ttm大于0；量比大于2；外盘/内盘≥1.3；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；'
+    sw_search_str = '上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；市盈ttm大于0；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；资金流入的；换手率大于上一交易日换手率的0.8倍以上；主力增仓占比>=5%；'
+    xw_search_str = '上穿5日均线；上穿10日均线；股价大于20日均线；涨跌幅小于4；市盈ttm大于0；股价在3到35元之间；非中字头；非科创板；非*st；非北交所；非银行股；资金流入的；换手率大于上一交易日换手率的1.2倍以上；主力增仓占比>=5%；'
     # scheduler.add_job(search_gp, 'interval', seconds=20, id='test', args=[search_str],
     #                   replace_existing=True, timezone='Asia/Shanghai')
     if is_trading_day():
         today = datetime.now().strftime("%Y%m%d")
-        dt_9_40 = datetime.strptime(today + ' 09:40', "%Y%m%d %H:%M")
+        dt_9_38 = datetime.strptime(today + ' 09:38', "%Y%m%d %H:%M")
         dt_11_30 = datetime.strptime(today + ' 11:30', "%Y%m%d %H:%M")
         dt_13_00 = datetime.strptime(today + ' 13:00', "%Y%m%d %H:%M")
         dt_14_48 = datetime.strptime(today + ' 14:48', "%Y%m%d %H:%M")
-        scheduler.add_job(search_gp, 'interval', seconds=150, id='sw', args=[search_str],
-                          start_date=dt_9_40, end_date=dt_11_30, replace_existing=True, timezone='Asia/Shanghai')
-        scheduler.add_job(search_gp, 'interval', seconds=150, id='xw', args=[search_str],
+        scheduler.add_job(search_gp, 'interval', seconds=150, id='sw', args=[sw_search_str],
+                          start_date=dt_9_38, end_date=dt_11_30, replace_existing=True, timezone='Asia/Shanghai')
+        scheduler.add_job(search_gp, 'interval', seconds=150, id='xw', args=[xw_search_str],
                           start_date=dt_13_00, end_date=dt_14_48, replace_existing=True, timezone='Asia/Shanghai')
-        scheduler.add_job(push_wechat, 'interval', seconds=120, id='auto_push_wechat', start_date=dt_9_40,
+        scheduler.add_job(push_wechat, 'interval', seconds=120, id='auto_push_wechat', start_date=dt_9_38,
                           end_date=dt_14_48, replace_existing=True, timezone='Asia/Shanghai')
     else:
         print("今天不是交易日~~~")

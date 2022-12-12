@@ -16,7 +16,7 @@ from tasks import add_task
 
 
 async def run():
-    await Tortoise.init(db_url=f"mysql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}", modules={"models": ["models"]})
+    await Tortoise.init(db_url=f"mysql://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}", modules={"models": ["models"]}, use_tz=False, timezone='Asia/Shanghai')
     scheduler.start()
     await add_task()
 

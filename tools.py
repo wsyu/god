@@ -56,11 +56,22 @@ def get_stock_info(code: str):
             resp = requests.get(url=url)
             data = resp.text
             stock_info_list = data.split('~')
+            # print(stock_info_list)
+            stock_info['name'] = stock_info_list[1]
+            stock_info['code'] = stock_info_list[2]
             stock_info['price'] = stock_info_list[3]
             stock_info['TTM'] = stock_info_list[39]
             stock_info['volume_ratio'] = stock_info_list[49]
+            stock_info['turnover_rate'] = stock_info_list[38]
+            stock_info['outer_disc'] = stock_info_list[7]
+            stock_info['inter_disc'] = stock_info_list[8]
+            stock_info['circulation_market_value'] = stock_info_list[44]
             break
         except:
             time.sleep(2)
             retry_count += 1
     return stock_info
+
+# if __name__ == "__main__":
+#     stock = get_stock_info('300750')
+#     print(stock)
