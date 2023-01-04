@@ -81,7 +81,7 @@ async def stock_save_db(stock_list: List):
                                    turnover_rate=stock_info['turnover_rate'],
                                    circulation_market_value=stock_info['circulation_market_value'],
                                    )
-                push_stock_str += f"<p>{stock.code} {stock.name} {stock.last_price}</p>"
+                push_stock_str += f"<p>{stock_code} {stock_name} {stock_info['price']}</p>"
 
         except:
             continue
