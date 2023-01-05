@@ -86,7 +86,7 @@ async def stock_save_db(stock_list: List):
         except:
             continue
     if push_stock_str:
-        await send_wechat(push_stock_str)
+        send_wechat(push_stock_str)
 
 async def search_gp(search_str: str):
     """
@@ -183,7 +183,7 @@ async def gp_start():
         # scheduler.add_job(push_wechat, 'interval', seconds=120, id='auto_push_wechat', start_date=dt_9_38,
         #                   end_date=dt_14_48, replace_existing=True, timezone='Asia/Shanghai')
     else:
-        await send_wechat("今天不是交易日~~~")
+        send_wechat("今天不是交易日~~~")
         # print("今天不是交易日~~~")
 
 async def keep_db_conn():
